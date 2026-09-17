@@ -19,4 +19,10 @@ CHIP Mux8Way16 {
 
     PARTS:
     // Put your code here:
+    // 第一層：利用低位元 sel[0..1] 在兩組四通道中各選出一個候選者
+    Mux4Way16(a=a, b=b, c=c, d=d, sel=sel[0..1], out=muxABCD);
+    Mux4Way16(a=e, b=f, c=g, d=h, sel=sel[0..1], out=muxEFGH);
+
+    // 第二層：利用最高位元 sel[2] 做最終二選一
+    Mux16(a=muxABCD, b=muxEFGH, sel=sel[2], out=out);
 }
