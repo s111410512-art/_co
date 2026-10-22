@@ -39,5 +39,57 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    // Put your code here:// 1. Instruction Decoding
+    Not(in=instruction[15], out=isA);
+    Not(in=isA, out=isC);
+
+    // 2. A Register and its input Mux
+    // If it's an A-instruction (isA==1), load the instruction into A.
+    // If it's a C-instruction and d1 (instruction[5]) is set, load ALU output into A.
+    And(a=isC, b=instruction[5], out=isCAndD1);
+    Or(a=isA, b=isCAndD1, out=loadA);
+
+    Mux16(a=instruction, b=aluOut, sel=instruction[15], out=muxAOut);
+    ARegister(in=muxAOut, load=loadA, out=aRegOut, out[0..14]=addressM);
+
+    // 3. Select ALU Y-input (A register vs Memory inM) based on 'a' bit (instruction[12])
+    Mux16(a=aRegOut, b=inM, sel=instruction[12], out=aluY);
+
+    // 4. D Register logic (loaded if C-instruction and d2/instruction[4] is 1)
+    And(a=isC, b=instruction[4], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=dRegOut);
+
+    // 5. ALU Execution
+    ALU(x=dRegOut, y=aluY, 
+        zx=instruction[11], 
+        nx=instruction[10], 
+        zy=instruction[9], 
+        ny=instruction[8], 
+        f=instruction[7], 
+        no=instruction[6], 
+        out=aluOut, out=outM, zr=zr, ng=ng);
+
+    // 6. Memory Write Signal (writeM = C-instruction AND d3/instruction[3])
+    And(a=isC, b=instruction[3], out=writeM);
+
+    // 7. Jump Condition Logic
+    // Compute 'pos' flag (output > 0)
+    Not(in=ng, out=notNg);
+    Not(in=zr, out=notZr);
+    And(a=notNg, b=notZr, out=pos);
+
+    // Check jump control bits (j1: ng, j2: zr, j3: pos)
+    And(a=instruction[2], b=ng, out=j1Ng);
+    And(a=instruction[1], b=zr, out=j2Zr);
+    And(a=instruction[0], b=pos, out=j3Pos);
+
+    Or(a=j1Ng, b=j2Zr, out=j12);
+    Or(a=j12, b=j3Pos, out=jumpCond);
+
+    // Only load PC if it's a C-instruction and jump condition is satisfied
+    And(a=isC, b=jumpCond, out=loadPC);
+
+    // 8. Program Counter (PC)
+    PC(in=aRegOut, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+
 }
